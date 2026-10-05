@@ -1,0 +1,9 @@
+http:
+  port: "8082"
+
+api:
+  id: "21195672"
+process:
+  api:
+    url: "https://ase-process-api-soap-u0zc5p.5sc6y6-4.usa-e2.cloudhub.io/BankingProcessAPIService/BankingProcessPort"
+    timeout: "60000"

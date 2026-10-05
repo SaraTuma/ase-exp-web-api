@@ -1,0 +1,607 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:wsc="http://www.mulesoft.org/schema/mule/wsc"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/wsc http://www.mulesoft.org/schema/mule/wsc/current/mule-wsc.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<os:object-store name="beneficiarios-store" doc:name="Object store" doc:id="5dda7309-1bf2-4e0f-b775-fd5b8fabf8aa" />
+	<sub-flow name="scheduleTransfer-impl" doc:id="66b40b52-2ce1-4cdd-a8b1-6fc73ebad50e" >
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.scheduleTransferRequest]" doc:name="req" doc:id="650209b2-613d-4f1f-b38c-55dc00b19c2b" variableName="req"/>
+		<choice doc:name="Validar regras de agendamento" doc:id="a435cf3c-6812-4d4f-a7e6-35e5d446fff8" >
+			<when expression="#[(vars.req.scheduledDate as Date) &lt; now() as Date]">
+				<raise-error doc:name="AGENDAMENTO_INVALIDO" doc:id="4b61b346-abf3-4336-aa8b-430b923db4c7" type="EXPERIENCE:AGENDAMENTO_INVALIDO" description="A data de agendamento não pode ser anterior a hoje."/>
+			</when>
+			<when expression="#[((vars.req.recurrence default '') as String) != 'UNICA' and isEmpty(vars.req.endDate)]">
+				<raise-error doc:name="AGENDAMENTO_INVALIDO" doc:id="38e3a31d-12bd-44bd-8701-7b1f60d9f81b" type="EXPERIENCE:AGENDAMENTO_INVALIDO" description="Para agendamentos recorrentes, a data de fim é obrigatória." />
+			</when>
+			<when expression="#[((vars.req.recurrence default '') as String) != 'UNICA'&#10;    and !isEmpty(vars.req.endDate)&#10;    and (vars.req.endDate as Date) &lt;= (vars.req.scheduledDate as Date)]">
+				<raise-error doc:name="AGENDAMENTO_INVALIDO" doc:id="dc7ec2d3-4739-40d5-aab9-58dc4ac222f4" type="EXPERIENCE:AGENDAMENTO_INVALIDO" description="A data de fim deve ser posterior à data de agendamento."/>
+			</when>
+			<when expression="#[((vars.req.amount default 0) as Number) &lt;= 0]">
+				<raise-error doc:name="AGENDAMENTO_INVALIDO" doc:id="1dc4b7ae-a3e9-4f41-8f45-b6a0260c8267" type="EXPERIENCE:AGENDAMENTO_INVALIDO" description="O valor a transferir deve ser superior a zero."/>
+			</when>
+			<when expression="#[(vars.req.sourceAccountId as String) == &#10;(vars.req.destinationAccountId as String)]">
+				<raise-error doc:name="AGENDAMENTO_INVALIDO" doc:id="bb7cc2ef-dd6c-4412-84f5-7833ec5da1c8" type="EXPERIENCE:AGENDAMENTO_INVALIDO" description="A conta de origem e de destino não podem ser iguais."/>
+			</when>
+		
+		
+</choice>
+		<os:retrieve doc:name="Ler agendamentos" doc:id="778cd54d-8509-4489-9f4b-223dc7df7aff" key="#[('agend-' ++ (vars.req.customerId as String))]" objectStore="beneficiarios-store" target="agendamentos">
+			<os:default-value ><![CDATA[#[[]]]]></os:default-value>
+		</os:retrieve>
+		<ee:transform doc:name="Novo agendamento" doc:id="d169b9e0-e260-487c-b678-e0dc0df6605c" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="agendamento" ><![CDATA[%dw 2.0
+output application/java
+
+var agendada     = vars.req.scheduledDate as Date
+var recorrencia  = (vars.req.recurrence default "UNICA") as String
+
+// Próxima execução depois da primeira
+var proxima =
+  if (recorrencia == "SEMANAL") agendada + |P7D|
+  else if (recorrencia == "MENSAL") agendada + |P1M|
+  else null
+---
+{
+  scheduleId:           ((now() as Number) mod 900000) + 100000,
+  customerId:           vars.req.customerId,
+  sourceAccountId:      vars.req.sourceAccountId,
+  destinationAccountId: vars.req.destinationAccountId,
+  amount:               (vars.req.amount default 0) as Number,
+  description:          vars.req.description default null,
+  scheduledDate:        agendada as String,
+  recurrence:           recorrencia,
+  endDate:              if (isEmpty(vars.req.endDate)) null else (vars.req.endDate as Date) as String,
+  nextExecutionDate:    agendada as String,
+  proximaAposEsta:      if (proxima == null) null else (proxima as String),
+  status:               "AGENDADA",
+  createdAt:            now() as String
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<ee:transform doc:name="Mock scheduleTransfer" doc:id="094388e1-614a-458a-a58b-0006aa6c818f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+ns web http://standardbank.ao/internetbanking/experience/1.0
+
+var req        = payload.body.scheduleTransferRequest
+var agendada   = req.scheduledDate as Date
+var recorrencia = req.recurrence as String
+var valor      = req.amount as Number
+
+var proxima =
+  if (recorrencia == "SEMANAL") agendada + |P7D|
+  else if (recorrencia == "MENSAL") agendada + |P1M|
+  else agendada
+
+var descricaoRecorrencia =
+  if (recorrencia == "SEMANAL") "todas as semanas"
+  else if (recorrencia == "MENSAL") "todos os meses"
+  else "uma unica vez"
+---
+{
+  body: {
+    web#scheduleTransferResponse: {
+      web#scheduleId:        7001,
+      web#status:            "AGENDADA",
+      web#nextExecutionDate: agendada,
+      web#message:           "Transferencia de "
+                             ++ (valor as String {format: "#,##0.00"})
+                             ++ " AOA agendada para "
+                             ++ (agendada as String {format: "dd/MM/yyyy"})
+                             ++ ", a repetir " ++ descricaoRecorrencia
+                             ++ ". Proxima execucao apos esta: "
+                             ++ (proxima as String {format: "dd/MM/yyyy"}) ++ "."
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="viewDashboard-impl" doc:id="d7142428-7a85-470b-9255-de43f4c0d2b6" >
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.viewDashboardRequest.customerId]" doc:name="customerId" doc:id="9779825d-2206-423c-86fd-9c0be52bead8" variableName="customerId" />
+		<wsc:consume operation="getAccountOverview" doc:name="getAccountOverview" doc:id="620f4cf1-fc0f-4832-b7d6-4901633665cb" config-ref="Process_API_Config" >
+			<wsc:message >
+				<wsc:body ><![CDATA[#[%dw 2.0
+output application/xml
+ns proc http://example.com/banking/process
+---
+{
+  proc#getAccountOverviewRequest: {
+    proc#customerId: vars.customerId
+  }
+}]]]></wsc:body>
+			</wsc:message>
+		</wsc:consume>
+		<flow-ref doc:name="check-process-fault" doc:id="675cf89c-f754-45dc-bfbb-e74fd6702ae0" name="check-process-fault" />
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body..*accountDetails default []]" doc:name="accounts" doc:id="52af29bf-c0a3-4f05-bb58-c97e59241ae7" variableName="accounts" />
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.getAccountOverviewResponse.saldoTotalAgregado default 0]" doc:name="saldoTotalAgregado" doc:id="29d1f110-33b4-4f03-9776-72eba486b822" variableName="saldoTotalAgregado" />
+		<ee:transform doc:name="viewDashboard" doc:id="08972264-5a3b-433d-b3e6-325bd297fe14" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+
+---
+{
+  body: {
+    viewDashboardResponse: {
+     (vars.accounts map {
+        account: {
+          accountId:   $.accountId,
+          iban:        $.iban,
+          accountType: $.accountType,
+          currency:    $.currency,
+          balance:     $.balance
+        }
+      }),
+       aggregateBalance: vars.saldoTotalAgregado default 0
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="makeTransfer-impl" doc:id="78bac2e1-f3e3-4d38-98bd-8c93bdd540e1">
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;ns mob http://standardbank.ao/mobilebanking/experience/1.0&#10;---&#10;payload.body.makeTransferRequest]" doc:name="req" doc:id="978cf00e-fd39-44ef-98f9-2792877a6702" variableName="req" />
+		<logger level="INFO" doc:name="Logger" doc:id="046b9851-bbd7-4ea8-ad21-cc9dedec8e23" message="#[vars.req]"/>
+		<wsc:consume operation="transferFunds" doc:name="transferFunds" doc:id="f27b8e40-dc25-4cd1-bbef-740ca9210b11" config-ref="Process_API_Config">
+			<wsc:message>
+				<wsc:body><![CDATA[#[%dw 2.0
+output application/xml
+ns prc http://example.com/banking/process
+---
+{
+  prc#transferFundsRequest: {
+    prc#contaOrigem:  vars.req.sourceAccountId,
+    prc#contaDestino: vars.req.destinationAccountId,
+    prc#valor:        vars.req.amount,
+    (prc#descricao:   vars.req.description) if (vars.req.description != null)
+  }
+}]]]></wsc:body>
+			</wsc:message>
+		</wsc:consume>
+		<flow-ref doc:name="check-process-fault" doc:id="a07ae67b-8864-4383-aa00-08f309b19b19" name="check-process-fault" />
+		<ee:transform doc:name="makeTransfer" doc:id="ff4156a5-c059-4c6d-b41f-d3750475e33d">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+
+var r     = payload.body.transferFundsResponse
+var st    = r.status as String
+var risco = r.riskFlag as String
+var valor = vars.req.amount as Number
+
+var texto = {
+  "CONFIRMADA": "Transferência de " ++ (valor as String {format: "#,##0.00"})
+             ++ " AOA processada com sucesso. Referência: "
+             ++ (r.transactionId default "-"),
+  "PENDENTE": "A sua transferência está em análise de segurança."
+}[st] default "Operação não concluída."
+
+var alerta =
+  if (st == "ALTO")
+    "Destinatário pouco ou nunca utilizado e valor elevado."
+  else if (risco == "MEDIO")
+    "TDestinatário já utilizado anteriormente. Valor dentro de um padrão razoável."
+  else
+    "Destinatário habitual. Transferência compatível com o seu histórico."
+---
+{
+  body: {
+    makeTransferResponse: {
+      status:     st,
+      message:    texto,
+      newBalance: r.novoSaldo as Number,
+      riskFlag:   risco,
+      (alertMessage: alerta) if (risco != "BAIXO" or st == "PENDENTE_REVISAO")
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="viewStatement-impl" doc:id="5ff61260-3775-4247-8471-acfee89b3cb8">
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.viewStatementRequest]" doc:name="req" doc:id="350a016c-96b8-41c6-ba3a-cdaf04581beb" variableName="req" />
+		<wsc:consume operation="getEnrichedStatement" doc:name="getEnrichedStatement" doc:id="a5cf53ca-85b5-4d11-9d42-8be16858121b" config-ref="Process_API_Config">
+			<wsc:message>
+				<wsc:body><![CDATA[#[%dw 2.0
+output application/xml
+ns prc http://example.com/banking/process
+---
+{
+  prc#getEnrichedStatementRequest: {
+    prc#accountId:  vars.req.accountId as String,
+    prc#dataInicio: vars.req.startDate as String,
+    prc#dataFim:    vars.req.endDate as String
+  }
+}]]]></wsc:body>
+			</wsc:message>
+		</wsc:consume>
+		<flow-ref doc:name="check-process-fault" doc:id="e8a0bde2-c0b9-4b2e-aefc-e29dbf36135d" name="check-process-fault" />
+		<ee:transform doc:name="viewStatementResponse" doc:id="0933a3f0-992c-489e-9831-7da06db6baab">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+
+output application/java
+var movs  = (payload.body..*transactionDetails) default []
+var conta = vars.req.accountId as String
+
+fun ehDebito(m)  = (m.sourceAccount as String) == conta
+fun descricao(m) = if (isEmpty(m.description))
+                     ("Movimento " ++ (m.transactionId default ""))
+                   else (m.description as String)
+---
+{
+  body: {
+    viewStatementResponse: {
+	transactions:{
+		((movs orderBy ($.transactionDate as DateTime)) map (m) -> {
+        transaction: {
+          transactionId:   (m.transactionId as Number) default 0,
+          transactionDate: m.transactionDate as LocalDateTime,
+          description:     descricao(m),
+          category:        (m.category default "OUTROS"),
+          amount:          m.amount as Number,
+          destinationAccount: m.destinationAccount default "-",
+          "type":          if (ehDebito(m)) "DEBITO" else "CREDITO"
+        }
+      })
+	}
+      
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="viewSpendingInsights-impl" doc:id="9702eae3-73bd-478a-a181-f264275c7a0c">
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.viewSpendingInsightsRequest.customerId]" doc:name="customerId" doc:id="93d8a359-b27f-4f73-a9ba-06fbfcf601c8" variableName="customerId" />
+		<wsc:consume operation="getSpendingInsights" doc:name="getSpendingInsights" doc:id="9b5d7375-331a-4be8-875b-45ae7ffd9fc7" config-ref="Process_API_Config">
+			<wsc:message>
+				<wsc:body><![CDATA[#[%dw 2.0
+output application/xml
+ns prc http://example.com/banking/process
+---
+{
+  prc#getSpendingInsightsRequest: {
+    prc#customerId: vars.customerId
+  }
+}]]]></wsc:body>
+			</wsc:message>
+		</wsc:consume>
+		<flow-ref doc:name="check-process-fault" doc:id="f95d5531-f1e2-4cc8-a704-4f2fb7cc5005" name="check-process-fault" />
+		<ee:transform doc:name="viewSpendingInsights" doc:id="9686e972-193d-4a52-8195-b3f335f6cc9d">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+ns web http://standardbank.ao/internetbanking/experience/1.0
+var nomes = {
+  "transporte": "transporte", "taxi": "táxi", "alimentacao": "alimentação",
+  "pagamento": "pagamentos", "lazer": "lazer", "saude": "saúde",
+  "outros": "outros", "unknown": "categoria desconhecida"
+}
+
+var insights = (payload.body..*insight) default []
+var blocos   = (payload.body..*percentualVariacao default []) filter ($ is Object)
+
+fun kz(n)     = (((n default 0) as Number) as String {format: "#,##0.00"}) ++ " Kz"
+fun pct(n)    = abs((n default 0) as Number) as String {format: "0.#"}
+fun nome(k)   = nomes[k] default k
+fun codigo(k) = if (k == "unknown") "Categoria Desconhecida" else upper(k)
+
+var categorias = flatten(
+  blocos map ((pv) ->
+    pv pluck ((v, k) -> {
+      chave:      k as String,
+      atual:      (v.atual default 0) as Number,
+      anterior:   (v.anterior default 0) as Number,
+      // <percentual/> vazio chega como null ou "" — o isEmpty cobre os dois
+      percentual: if (isEmpty(v.percentual)) null else (v.percentual as Number)
+    })
+  )
+) orderBy -($.atual)
+
+fun mensagem(c) =
+  if (c.atual == 0 and c.anterior > 0)
+    "Não teve gastos em " ++ nome(c.chave) ++ " este mês (no mês passado: " ++ kz(c.anterior) ++ ")."
+  else if (c.percentual == null)
+    "Novo este mês: gastou " ++ kz(c.atual) ++ " em " ++ nome(c.chave) ++ "."
+  else if (c.percentual >= 200)
+    "Os seus gastos em " ++ nome(c.chave) ++ " subiram de " ++ kz(c.anterior) ++ " para " ++ kz(c.atual) ++ " este mês."
+  else if (c.percentual <= -99)
+    "Praticamente deixou de gastar em " ++ nome(c.chave) ++ " este mês."
+  else if (c.percentual < 0 )
+    "Boa notícia: gastou " ++ pct(c.percentual) ++ "% menos em " ++ nome(c.chave) ++ " face ao mês passado."
+  else if (c.percentual > 0)
+    "Gastou " ++ pct(c.percentual) ++ "% mais em " ++ nome(c.chave) ++ " do que no mês passado."
+  else if (c.percentual == 0)
+    "Gastou mais em " ++ nome(c.chave) ++ " do que no mês passado."
+  else
+    "Gastos em " ++ nome(c.chave) ++ " iguais aos do mês passado: " ++ kz(c.atual) ++ "."
+---
+{
+  body: {
+    web#viewSpendingInsightsResponse: {
+       (
+       	insights map (i) -> {
+          title: i.categoria,
+          description:  i.mensagem default ""
+		}
+		),
+        insights:{
+	      (categorias map (c) -> {
+	        web#insight: {
+	          category: upper(codigo(c.chave)),
+	          currentMonth: c.atual default "-",
+	          lastMonth: c.anterior default "-",
+	          message:  mensagem(c),
+	          (changePercentage: c.percentual) if (c.percentual != null)
+	        }
+	      })
+      }
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="blockOrUnblockCard-impl" doc:id="d9c298a1-c34b-43af-83e2-c721514cc727">
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.blockOrUnblockCardRequest]" doc:name="req" doc:id="ffc2b1f3-655c-40cc-b820-9670ee39b5d7" variableName="req" />
+		<wsc:consume operation="manageCard" doc:name="manageCard" doc:id="f96ac9ca-44dc-4db3-a8b6-850d86c55f50" config-ref="Process_API_Config">
+			<wsc:message>
+				<wsc:body><![CDATA[#[%dw 2.0
+output application/xml
+ns prc http://example.com/banking/process
+---
+{
+  prc#manageCardRequest: {
+    prc#cardId:  vars.req.cardId,
+    prc#action: vars.req.action
+  }
+}]]]></wsc:body>
+			</wsc:message>
+		</wsc:consume>
+		<flow-ref doc:name="check-process-fault" doc:id="fefea6d5-fae1-44e3-b23e-dce4354763dd" name="check-process-fault" />
+		<logger level="INFO" doc:name="Logger" doc:id="5d5dd8b0-2b15-47f0-89d9-03d2a566eb06" message="#[payload.body..*percentualVariacao]" />
+		<ee:transform doc:name="blockOrUnblockCard" doc:id="1c1f6df7-3d18-4ca8-9d23-f60d9134ef60">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+ns web http://standardbank.ao/internetbanking/experience/1.0
+
+var req    = payload.body.manageCardResponse
+var cardId = req.cardId
+var accao  = req.status
+---
+{
+  body: {
+    web#blockOrUnblockCardResponse: {
+      web#cardId: cardId,
+      web#status: accao,
+      web#message:
+        if (accao == "BLOQUEADO")
+          "Cartao bloqueado. Pode desbloquea-lo a qualquer momento na app."
+        else if (accao == "CANCELADO")
+          "Cartao cancelado. Não pode utilizar na app."
+        else
+          "Cartao ativo e pronto a usar."
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="addBeneficiary-impl" doc:id="af51be3d-2592-4e43-b41b-b32418b68ef8" >
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.addBeneficiaryRequest]" doc:name="req" doc:id="a5a473ad-d2da-4e28-9f0f-3050849b96dc" variableName="req" />
+		<choice doc:name="Validar IBAN" doc:id="399e5550-e2a5-4f2d-92aa-e6471995be53" >
+			<when expression="#[!((vars.req.beneficiaryIban default '') as String matches /^AO06\d{21}$/)]" >
+				<raise-error doc:name="Raise error" doc:id="b98bcbc7-1e53-4063-b19d-49abfd700060" type="EXPERIENCE:IBAN_INVALIDO" description="O IBAN indicado não é válido. Deve começar por AO06 e ter 25 caracteres." />
+			</when>
+		</choice>
+		<os:retrieve doc:name="Ler lista" doc:id="0a1c6a2f-4bae-4ffe-9d8c-b2bdeeae8d0a" key="#[('benef-' ++ (vars.req.customerId as String))]" objectStore="beneficiarios-store" target="existentes" >
+			<os:default-value ><![CDATA[#[[]]]]></os:default-value>
+		</os:retrieve>
+		<choice doc:name="Ja existe?" doc:id="032b3ee6-5dfe-4d49-91cf-ce4c4b74cf0a" >
+			<when expression="#[!isEmpty(vars.existentes filter ($.beneficiaryIban == (vars.req.beneficiaryIban as String)))]" >
+				<raise-error doc:name="BENEFICIARIO_DUPLICADO" doc:id="686c37e5-6328-4776-b797-4a8722556faa" type="EXPERIENCE:BENEFICIARIO_DUPLICADO" description="Já existe um beneficiário registado com este IBAN." />
+			</when>
+		</choice>
+		<ee:transform doc:name="Novo beneficiario" doc:id="7723e0e9-4c42-446f-a2fc-dc1a84284cf7" >
+			<ee:variables >
+				<ee:set-variable variableName="novo" ><![CDATA[%dw 2.0
+output application/java
+---
+{
+  beneficiaryId:   now() as Number {unit: "milliseconds"},
+  beneficiaryName: vars.req.beneficiaryName as String,
+  beneficiaryIban: vars.iban,
+  alias:           if (isEmpty(vars.req.alias)) null else (vars.req.alias as String),
+  createdAt:       now() as String
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<os:store doc:name="Guardar" doc:id="5afa9777-3319-43cb-8e3e-f189ecba59e1" key="#[('benef-' ++ (vars.req.customerId as String))]" objectStore="beneficiarios-store" >
+			<os:value ><![CDATA[#[(vars.existentes default []) + vars.novo]]]></os:value>
+		</os:store>
+		<ee:transform doc:name="addBeneficiaryResponse" doc:id="165af697-f531-4986-808d-7a859d03a61b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+ns web http://standardbank.ao/internetbanking/experience/1.0
+---
+{
+  body: {
+    web#addBeneficiaryResponse: {
+      web#beneficiaryId: vars.novo.beneficiaryId,
+      web#status:        "REGISTADO",
+      web#message:       "Beneficiário " ++ (vars.novo.beneficiaryName default "") ++ " registado com sucesso."
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="listBeneficiaries-impl" doc:id="9994e0fc-90ee-4f02-ade7-767df11c6ec4" >
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;&#10;---&#10;payload.body.listBeneficiariesRequest.customerId]" doc:name="customerId" doc:id="2e35deac-cb11-46b2-97e8-cf5b261cd8db" variableName="customerId" />
+		<os:retrieve doc:name="Ler lista" doc:id="5b934e65-7822-4313-b7d8-4b6655808ef5" key="#[('benef-' ++ (vars.customerId as String))]" objectStore="beneficiarios-store" target="lista" >
+			<os:default-value ><![CDATA[#[[]]]]></os:default-value>
+		</os:retrieve>
+		<ee:transform doc:name="listBeneficiariesResponse" doc:id="b6d14bc2-6bc5-47f0-bfdb-254a79ebff46" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+ns web http://standardbank.ao/internetbanking/experience/1.0
+---
+{
+  body: {
+    web#listBeneficiariesResponse: {
+    	beneficiaries: 
+      ((vars.lista default []) orderBy $.beneficiaryName map (b) -> {
+        web#beneficiary: {
+          web#beneficiaryId:   b.beneficiaryId,
+          web#beneficiaryName: b.beneficiaryName,
+          web#beneficiaryIban: b.beneficiaryIban,
+          (web#alias: b.alias) if (b.alias != null)
+        }
+      })
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="removeBeneficiary-impl" doc:id="585eeba2-d0fc-40c5-969b-d6c2f818888c" >
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.removeBeneficiaryRequest.beneficiaryId]" doc:name="benefId" doc:id="691a19dc-ddba-4209-bd8f-0cd8c2d20c9f" variableName="benefId" />
+		<os:retrieve-all doc:name="Ler tudo" doc:id="5f2fce92-e049-446e-b22a-5b05aa19e930" objectStore="beneficiarios-store" target="todos" />
+		<ee:transform doc:name="Localizar dono" doc:id="0cad3058-df6c-4cc8-89b1-85112cf37433" >
+			<ee:variables >
+				<ee:set-variable variableName="chaveDono" ><![CDATA[%dw 2.0
+output application/java
+var id = vars.benefId as Number
+---
+// FIX: só olha para chaves "benef-*" e protege itens sem beneficiaryId
+((vars.todos default {}) filterObject ((v, k) ->
+    ((k as String) startsWith "benef-")
+    and !isEmpty((v default []) filter (($.beneficiaryId default -1) as Number == id))
+) pluck ((v, k) -> k as String))[0]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<choice doc:name="Encontrado?" doc:id="1b75d317-b793-4d0f-93bd-ba021ae81263" >
+			<when expression="#[vars.chaveDono == null]" >
+				<raise-error doc:name="BENEFICIARIO_INVALIDO" doc:id="7838b83e-3a1c-47ea-a6f3-ecdd030ff5ba" type="EXPERIENCE:BENEFICIARIO_INVALIDO" description="Beneficiário não encontrado." />
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Remover" doc:id="9693be44-cb01-42e1-9559-7dfb756b9964" >
+					<ee:message />
+					<ee:variables >
+						<ee:set-variable variableName="restantes" ><![CDATA[%dw 2.0
+output application/java
+---
+(vars.todos[vars.chaveDono] default []) filter ($.beneficiaryId as Number != (vars.benefId as Number))]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<os:store doc:name="Guardar" doc:id="98a2d7eb-0b3a-483b-8a32-6fbf2e9abc37" key="#[vars.chaveDono]" objectStore="beneficiarios-store" >
+					<os:value ><![CDATA[#[vars.restantes]]]></os:value>
+				</os:store>
+			</otherwise>
+		</choice>
+		<ee:transform doc:name="removeBeneficiaryResponse" doc:id="d5eb758f-8fe1-4f59-9e08-74588ec29177" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+ns web http://standardbank.ao/internetbanking/experience/1.0
+---
+{
+  body: {
+    web#removeBeneficiaryResponse: {
+      web#status:  "REMOVIDO",
+      web#message: "Beneficiário removido com sucesso."
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="exportStatement-impl" doc:id="b05e5a30-a1e3-45ff-8a6d-baa9661760c2">
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload.body.exportStatementRequest]" doc:name="req" doc:id="a7a81351-9157-4448-8bbe-6667f328d7de" variableName="req" />
+		<choice doc:name="Formato suportado?" doc:id="417db19f-2542-4f90-851d-5386bb47a7c7">
+			<when expression="#[((vars.req.format default '') as String) == 'PDF']">
+				<raise-error doc:name="FORMATO_NAO_SUPORTADO" doc:id="7cf31ef5-862b-433d-882a-065d389e17b6" type="EXPERIENCE:FORMATO_NAO_SUPORTADO" description="A exportação em PDF ainda não está disponível. Utilize o formato CSV." />
+			</when>
+		</choice>
+		<wsc:consume operation="getEnrichedStatement" doc:name="getEnrichedStatement" doc:id="4b0fc459-b23b-4ce5-bf73-6ba7647fac4a" config-ref="Process_API_Config">
+			<wsc:message>
+				<wsc:body><![CDATA[#[%dw 2.0
+output application/xml
+ns prc http://example.com/banking/process
+---
+{
+  prc#getEnrichedStatementRequest: {
+    prc#accountId:  vars.req.accountId as String,
+    prc#dataInicio: vars.req.startDate as String,
+    prc#dataFim:    vars.req.endDate as String
+  }
+}]]]></wsc:body>
+			</wsc:message>
+		</wsc:consume>
+		<flow-ref doc:name="check-process-fault" doc:id="037b9c73-d03b-402f-91a2-ae6bbc093132" name="check-process-fault" />
+		<ee:transform doc:name="exportStatementResponse" doc:id="aa90ac41-b0c5-491b-af66-efac4fa63584">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+ns web http://standardbank.ao/internetbanking/experience/1.0
+import toBase64 from dw::core::Binaries
+
+var movs  = (payload.body..*transactionDetails) default []
+var conta = (vars.req.accountId default "") as String
+
+fun dataMov(m)  = (m.transactionDate default "") as LocalDateTime
+fun ehDebito(m) = ((m.sourceAccount default "") as String) == conta
+
+// mais recente primeiro
+var ordenados = if (isEmpty(movs)) [] else (movs orderBy dataMov($))[-1 to 0]
+
+var linhas = ordenados map (m) -> {
+  Data:      dataMov(m) as String {format: "dd/MM/yyyy HH:mm"},
+  Descricao: if (isEmpty(m.description)) ("Movimento " ++ ((m.transactionId default "") as String)) else (m.description as String),
+  Categoria: if (isEmpty(m.category)) "OUTROS" else upper(m.category as String),
+  Tipo:      if (ehDebito(m)) "DEBITO" else "CREDITO",
+  Valor: do {
+    var v = abs((m.amount default 0) as Number)
+    var s = if (ehDebito(m)) -v else v
+    ---
+    (s as String {format: "0.00"}) replace "." with ","
+  }
+}
+
+var csv = write(linhas, "application/csv", {separator: ";", header: true})
+---
+{
+  body: {
+    web#exportStatementResponse: {
+      web#fileName:    "extracto-" ++ conta ++ "-" ++ (now() as String {format: "yyyyMMdd"}) ++ ".csv",
+      web#mimeType:    "text/csv",
+      web#fileContent: toBase64(csv as Binary)
+    }
+  } write "application/xml"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="check-process-fault" doc:id="643eecf9-cf89-4fbf-a666-942fad6daf62">
+		<logger level="INFO" doc:name="Logger" doc:id="0835a88e-3909-41c9-8926-970b5f9e90fe" message="#[payload]" />
+		<choice doc:name="Fault disfarcado?" doc:id="d6aee9c9-fd61-429d-b623-ccff7aea48c6">
+			<when expression="#[!isEmpty(payload.body..*faultstring)]">
+				<set-variable value="#[(payload.body..*faultstring)[0] default 'Erro na Process API']" doc:name="faultProcess" doc:id="4e33038e-b834-4d05-913f-793b933db70a" variableName="faultProcess" />
+				<logger level="ERROR" doc:name="Logger" doc:id="c0d34add-fbf4-4563-afeb-c9b89372b5fd" message="#['Process devolveu fault em envelope normal: ' ++ (vars.faultProcess as String)]" />
+				<raise-error doc:name="SOAP Error" doc:id="8a05c610-819b-4aec-a035-805845803f03" type="EXPERIENCE:REQUISICAO_INVALIDA" description="#[vars.faultProcess]" />
+			</when>
+		</choice>
+	</sub-flow>
+</mule>

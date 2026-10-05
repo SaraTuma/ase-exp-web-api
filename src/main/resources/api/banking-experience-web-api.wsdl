@@ -1,0 +1,309 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<definitions name="BankingWebExperienceAPI"
+            targetNamespace="http://standardbank.ao/internetbanking/experience/1.0"
+             xmlns:tns="http://standardbank.ao/internetbanking/experience/1.0"
+             xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+              xmlns:common="http://standardbank.ao/common/types/1.0"
+             xmlns="http://schemas.xmlsoap.org/wsdl/">
+
+    <!-- =========================================================
+         TYPES - Esquema XSD com os elementos usados nas mensagens
+         ========================================================= -->
+    <types>
+        <xsd:schema targetNamespace="http://standardbank.ao/internetbanking/experience/1.0"
+                    xmlns:tns="http://standardbank.ao/internetbanking/experience/1.0"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                    elementFormDefault="qualified">
+
+            <!-- Mesmo namespace do próprio WSDL -> usa xsd:include (não xsd:import).
+                 Este arquivo externo já cuida, internamente, de importar o
+                 common-types.xsd (RiskFlag, CardAction, AccountSummary, etc.)
+                 e agora também contém as 5 operações reaproveitadas do mobile. -->
+            <xsd:include schemaLocation="web-experience-types.xsd"/>
+
+        </xsd:schema>
+    </types>
+
+    <!-- =========================================================
+         MESSAGES
+         ========================================================= -->
+
+    <message name="viewDashboardRequestMessage">
+        <part name="parameters" element="tns:viewDashboardRequest"/>
+    </message>
+    <message name="viewDashboardResponseMessage">
+        <part name="parameters" element="tns:viewDashboardResponse"/>
+    </message>
+    <message name="makeTransferRequestMessage">
+        <part name="parameters" element="tns:makeTransferRequest"/>
+    </message>
+    <message name="makeTransferResponseMessage">
+        <part name="parameters" element="tns:makeTransferResponse"/>
+    </message>
+    <message name="viewStatementRequestMessage">
+        <part name="parameters" element="tns:viewStatementRequest"/>
+    </message>
+    <message name="viewStatementResponseMessage">
+        <part name="parameters" element="tns:viewStatementResponse"/>
+    </message>
+    <message name="viewSpendingInsightsRequestMessage">
+        <part name="parameters" element="tns:viewSpendingInsightsRequest"/>
+    </message>
+    <message name="viewSpendingInsightsResponseMessage">
+        <part name="parameters" element="tns:viewSpendingInsightsResponse"/>
+    </message>
+    <message name="blockOrUnblockCardRequestMessage">
+        <part name="parameters" element="tns:blockOrUnblockCardRequest"/>
+    </message>
+    <message name="blockOrUnblockCardResponseMessage">
+        <part name="parameters" element="tns:blockOrUnblockCardResponse"/>
+    </message>
+
+    <message name="scheduleTransferRequestMessage">
+        <part name="parameters" element="tns:scheduleTransferRequest"/>
+    </message>
+    <message name="scheduleTransferResponseMessage">
+        <part name="parameters" element="tns:scheduleTransferResponse"/>
+    </message>
+    <message name="exportStatementRequestMessage">
+        <part name="parameters" element="tns:exportStatementRequest"/>
+    </message>
+    <message name="exportStatementResponseMessage">
+        <part name="parameters" element="tns:exportStatementResponse"/>
+    </message>
+    <message name="addBeneficiaryRequestMessage">
+        <part name="parameters" element="tns:addBeneficiaryRequest"/>
+    </message>
+    <message name="addBeneficiaryResponseMessage">
+        <part name="parameters" element="tns:addBeneficiaryResponse"/>
+    </message>
+    <message name="listBeneficiariesRequestMessage">
+        <part name="parameters" element="tns:listBeneficiariesRequest"/>
+    </message>
+    <message name="listBeneficiariesResponseMessage">
+        <part name="parameters" element="tns:listBeneficiariesResponse"/>
+    </message>
+    <message name="removeBeneficiaryRequestMessage">
+        <part name="parameters" element="tns:removeBeneficiaryRequest"/>
+    </message>
+    <message name="removeBeneficiaryResponseMessage">
+        <part name="parameters" element="tns:removeBeneficiaryResponse"/>
+    </message>
+
+    <!-- Referencia o Fault que agora vive no namespace comum -->
+    <message name="ExperienceFaultMessage">
+        <part name="fault" element="common:ExperienceFault"/>
+    </message>
+
+    <!-- =========================================================
+         PORT TYPE - Operações disponíveis no Experience API
+         ========================================================= -->
+    <portType name="BankingExperiencePortType">
+
+        <operation name="viewDashboard">
+            <input message="tns:viewDashboardRequestMessage"/>
+            <output message="tns:viewDashboardResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+
+        <operation name="makeTransfer">
+            <input message="tns:makeTransferRequestMessage"/>
+            <output message="tns:makeTransferResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+
+        <operation name="viewStatement">
+            <input message="tns:viewStatementRequestMessage"/>
+            <output message="tns:viewStatementResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+
+        <operation name="viewSpendingInsights">
+            <input message="tns:viewSpendingInsightsRequestMessage"/>
+            <output message="tns:viewSpendingInsightsResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+
+        <operation name="blockOrUnblockCard">
+            <input message="tns:blockOrUnblockCardRequestMessage"/>
+            <output message="tns:blockOrUnblockCardResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+
+        <operation name="scheduleTransfer">
+            <input message="tns:scheduleTransferRequestMessage"/>
+            <output message="tns:scheduleTransferResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+        <operation name="exportStatement">
+            <input message="tns:exportStatementRequestMessage"/>
+            <output message="tns:exportStatementResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+        <operation name="addBeneficiary">
+            <input message="tns:addBeneficiaryRequestMessage"/>
+            <output message="tns:addBeneficiaryResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+        <operation name="listBeneficiaries">
+            <input message="tns:listBeneficiariesRequestMessage"/>
+            <output message="tns:listBeneficiariesResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+        <operation name="removeBeneficiary">
+            <input message="tns:removeBeneficiaryRequestMessage"/>
+            <output message="tns:removeBeneficiaryResponseMessage"/>
+            <fault name="ExperienceFault" message="tns:ExperienceFaultMessage"/>
+        </operation>
+
+    </portType>
+
+    <!-- =========================================================
+         BINDING - document/literal (padrão recomendado)
+         Nota: a referência ao Fault no <soap:fault name="..."> precisa
+         bater com o "name" declarado na operation do portType acima
+         (ExperienceFault), não com o namespace do elemento.
+         ========================================================= -->
+    <binding name="BankingExperienceSoapBinding" type="tns:BankingExperiencePortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+
+        <operation name="viewDashboard">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/viewDashboard"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+
+        <operation name="makeTransfer">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/makeTransfer"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+
+        <operation name="viewStatement">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/viewStatement"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+
+        <operation name="viewSpendingInsights">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/viewSpendingInsights"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+
+        <operation name="blockOrUnblockCard">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/blockOrUnblockCard"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+        <operation name="scheduleTransfer">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/scheduleTransfer"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+        <operation name="exportStatement">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/exportStatement"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+        <operation name="addBeneficiary">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/addBeneficiary"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+        <operation name="listBeneficiaries">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/listBeneficiaries"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+        <operation name="removeBeneficiary">
+            <soap:operation soapAction="http://standardbank.ao/internetbanking/experience/1.0/removeBeneficiary"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+            <fault name="ExperienceFault">
+                <soap:fault name="ExperienceFault" use="literal"/>
+            </fault>
+        </operation>
+
+    </binding>
+    <!-- =========================================================
+         SERVICE - endereço onde o serviço será exposto
+         (ajustar host/porta ao rodar no Anypoint Studio / CloudHub)
+         Nota: mudei a porta/path em relação ao mobile (8081) para 8082,
+         já que se forem rodar as duas APIs juntas localmente, não
+         podem usar a mesma porta ao mesmo tempo.
+         ========================================================= -->
+    <service name="InternetBankingExperienceAPI">
+        <port name="BankingExperiencePort" binding="tns:BankingExperienceSoapBinding">
+            <soap:address location="http://localhost:8082/services/banking-web-experience-api"/>
+        </port>
+    </service>
+</definitions>

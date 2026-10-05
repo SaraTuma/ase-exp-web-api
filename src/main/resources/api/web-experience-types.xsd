@@ -1,0 +1,247 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema targetNamespace="http://standardbank.ao/internetbanking/experience/1.0"
+            xmlns:tns="http://standardbank.ao/internetbanking/experience/1.0"
+            xmlns:common="http://standardbank.ao/common/types/1.0"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            elementFormDefault="qualified">
+
+    <xsd:import namespace="http://standardbank.ao/common/types/1.0"
+                schemaLocation="common-types.xsd"/>
+
+    <xsd:element name="viewDashboardRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="customerId" type="xsd:long"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="viewDashboardResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="customerName" type="xsd:string" minOccurs="0"/>
+                <xsd:element name="accounts" type="common:AccountSummary" minOccurs="0" maxOccurs="unbounded"/>
+                <xsd:element name="aggregateBalance" type="xsd:decimal"/>
+                <xsd:element name="recentTransactions" type="common:TransactionSummary" minOccurs="0" maxOccurs="unbounded"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="makeTransferRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="customerId" type="xsd:long"/>
+                <xsd:element name="sourceAccountId" type="xsd:long"/>
+                <xsd:element name="destinationAccountId" type="xsd:long"/>
+                <xsd:element name="amount" type="xsd:decimal"/>
+                <xsd:element name="description" type="xsd:string" minOccurs="0"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="makeTransferResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="status" type="xsd:string"/>
+                <xsd:element name="message" type="xsd:string"/>
+                <xsd:element name="newBalance" type="xsd:decimal"/>
+                <xsd:element name="riskFlag" type="common:RiskFlag"/>
+                <xsd:element name="alertMessage" type="xsd:string" minOccurs="0"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="viewStatementRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="accountId" type="xsd:long"/>
+                <xsd:element name="startDate" type="xsd:date"/>
+                <xsd:element name="endDate" type="xsd:date"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="viewStatementResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="accountId" type="xsd:long"/>
+                <xsd:element name="iban" type="xsd:string" minOccurs="0"/>
+                <xsd:element name="transactions" type="common:StatementTransaction" minOccurs="0" maxOccurs="unbounded"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="viewSpendingInsightsRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="customerId" type="xsd:long"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="viewSpendingInsightsResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+            	<xsd:element name="title" type="xsd:string"/>
+            	<xsd:element name="description" type="xsd:string"/>
+                <xsd:element name="insights" type="common:InsightCard" minOccurs="0" maxOccurs="unbounded"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="blockOrUnblockCardRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="cardId" type="xsd:long"/>
+                <xsd:element name="action" type="common:CardAction"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="blockOrUnblockCardResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="cardId" type="xsd:long"/>
+                <xsd:element name="status" type="xsd:string"/>
+                <xsd:element name="message" type="xsd:string"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <!-- ===================== ENUMS EXCLUSIVOS DO WEB ===================== -->
+    <xsd:simpleType name="RecurrenceType">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="UNICA"/>
+            <xsd:enumeration value="SEMANAL"/>
+            <xsd:enumeration value="MENSAL"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:simpleType name="ExportFormat">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="PDF"/>
+            <xsd:enumeration value="CSV"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:complexType name="BeneficiarySummary">
+        <xsd:sequence>
+            <xsd:element name="beneficiaryId" type="xsd:long"/>
+            <xsd:element name="beneficiaryName" type="xsd:string"/>
+            <xsd:element name="beneficiaryIban" type="xsd:string"/>
+            <xsd:element name="alias" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <!-- ===================== scheduleTransfer ===================== -->
+    <xsd:element name="scheduleTransferRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="customerId" type="xsd:long"/>
+                <xsd:element name="sourceAccountId" type="xsd:long"/>
+                <xsd:element name="destinationAccountId" type="xsd:long"/>
+                <xsd:element name="amount" type="xsd:decimal"/>
+                <xsd:element name="description" type="xsd:string" minOccurs="0"/>
+                <xsd:element name="scheduledDate" type="xsd:date"/>
+                <xsd:element name="recurrence" type="tns:RecurrenceType"/>
+                <xsd:element name="endDate" type="xsd:date" minOccurs="0"/>
+                <!--
+                Regra de negócio a considerar: validar que scheduledDate
+                não seja no passado; se recurrence ≠ UNICA, endDate deve ser
+                obrigatório (isso é regra de negócio — não dá para validar
+                isso só com XSD, mas você pode comentar essa regra no seu
+                documento ou tratar no flow).
+                -->
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="scheduleTransferResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="scheduleId" type="xsd:long"/>
+                <xsd:element name="status" type="xsd:string"/>
+                <xsd:element name="nextExecutionDate" type="xsd:date"/>
+                <xsd:element name="message" type="xsd:string"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <!-- ===================== exportStatement ===================== -->
+    <xsd:element name="exportStatementRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="accountId" type="xsd:long"/>
+                <xsd:element name="startDate" type="xsd:date"/>
+                <xsd:element name="endDate" type="xsd:date"/>
+                <xsd:element name="format" type="tns:ExportFormat"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="exportStatementResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="fileName" type="xsd:string"/>
+                <xsd:element name="mimeType" type="xsd:string"/>
+                <xsd:element name="fileContent" type="xsd:base64Binary"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <!-- ===================== manageBeneficiaries ===================== -->
+    <xsd:element name="addBeneficiaryRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="customerId" type="xsd:long"/>
+                <xsd:element name="beneficiaryName" type="xsd:string"/>
+                <xsd:element name="beneficiaryIban" type="xsd:string"/>
+                <xsd:element name="alias" type="xsd:string" minOccurs="0"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="addBeneficiaryResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="beneficiaryId" type="xsd:long"/>
+                <xsd:element name="status" type="xsd:string"/>
+                <xsd:element name="message" type="xsd:string"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="listBeneficiariesRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="customerId" type="xsd:long"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="listBeneficiariesResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="beneficiaries" type="tns:BeneficiarySummary" minOccurs="0" maxOccurs="unbounded"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="removeBeneficiaryRequest">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="beneficiaryId" type="xsd:long"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+    <xsd:element name="removeBeneficiaryResponse">
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="status" type="xsd:string"/>
+                <xsd:element name="message" type="xsd:string"/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
+</xsd:schema>

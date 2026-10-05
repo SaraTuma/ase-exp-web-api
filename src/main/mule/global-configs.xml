@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:wsc="http://www.mulesoft.org/schema/mule/wsc" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway" xmlns:apikit-soap="http://www.mulesoft.org/schema/mule/apikit-soap" xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:bti="http://www.mulesoft.org/schema/mule/ee/bti" xmlns:cluster="http://www.mulesoft.org/schema/mule/ee/cluster" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:http-policy="http://www.mulesoft.org/schema/mule/mule-http" xmlns:kryo="http://www.mulesoft.org/schema/mule/kryo" xmlns:module="http://www.mulesoft.org/schema/mule/module" xmlns:sockets="http://www.mulesoft.org/schema/mule/sockets" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/apikit-soap http://www.mulesoft.org/schema/mule/apikit-soap/current/mule-apikit-soap.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/wsc http://www.mulesoft.org/schema/mule/wsc/current/mule-wsc.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="59432092-767e-4418-853c-7d09f87b2acf" >
+		<http:listener-connection host="0.0.0.0" port="${http.port}" />
+	</http:listener-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="be007b8b-1ada-4911-a91a-fd8895ee7872" file="config-${env}.yaml" />
+	<configuration doc:name="Configuration" doc:id="2f7eb555-d708-4766-a098-9522f6b27119" defaultErrorHandler-ref="global-experience-error-handler" />
+	<wsc:config name="Process_API_Config" doc:name="Web Service Consumer Config" doc:id="5d0cd762-4231-4b53-aacd-056db184a2fc" >
+		<wsc:connection wsdlLocation="${process.api.url}?wsdl" service="BankingProcessAPIService" port="BankingProcessPort" address="${process.api.url}"/>
+	</wsc:config>
+	
+	<error-handler name="global-experience-error-handler" doc:id="16c7a76b-d342-43d5-8414-a3e06c466d0b" >
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="Erros de negocio" doc:id="df155151-55e7-4e19-82fb-1c87127e4408" type="EXPERIENCE:*">
+			<ee:transform doc:name="ExperienceFault" doc:id="b6888a89-abe2-4db9-9d22-6d334dfd4288" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+ns soap http://schemas.xmlsoap.org/soap/envelope/
+ns common http://standardbank.ao/common/types/1.0
+
+var id = upper(error.errorType.identifier default "UNKNOWN")
+
+// Só o código EXP-xxx é mapeado; a mensagem vem do raise-error do flow.
+var codigos = {
+  "CLIENTE_INVALIDO":    "EXP-001",
+  "CONTA_INVALIDA":      "EXP-002",
+  "CARTAO_INVALIDO":     "EXP-003",
+  "REQUISICAO_INVALIDA": "EXP-400",
+  "RESPOSTA_INVALIDA":   "EXP-502",
+  "INVALID_NUMBER":      "EXP-400",
+  "SOAP_FAULT":          "EXP-400",
+  "AGENDAMENTO_INVALIDO" : "EXP-400"
+}
+
+var msg = error.description default "Não foi possível concluir a operação."
+---
+{
+  soap#Fault: {
+    faultcode:   "soap:Client",
+    faultstring: msg,
+    detail: {
+      common#ExperienceFault: {
+        common#errorCode:     codigos[id] default "EXP-400",
+        common#errorMessage:  msg,
+        common#timestamp:     now() as String {format: "yyyy-MM-dd'T'HH:mm:ssXXX"}
+      }
+    }
+  }
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+		</on-error-propagate>
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="fb9316f2-4ed7-4b53-a54f-7a3b5dca0ab9" type="ANY">
+			<ee:transform doc:name="General" doc:id="d11d3bb8-cd89-44c2-8bc1-f774db95f5d3" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+ns soap http://schemas.xmlsoap.org/soap/envelope/
+ns common http://standardbank.ao/common/types/1.0
+
+var nsErro = upper(error.errorType.namespace default "MULE")
+var idErro = upper(error.errorType.identifier default "UNKNOWN")
+
+var e =
+  if ((idErro contains "TIMEOUT") or (idErro contains "RETRY_EXHAUSTED"))
+    { code: "EXP-504", msg: "O serviço demorou a responder. Tente novamente dentro de instantes." }
+  else if ((idErro contains "CONNECTIVITY") or (idErro contains "CANNOT_DISPATCH")
+           or (idErro contains "CANNOT_REACH") or (idErro contains "INVALID_WSDL")
+           or (idErro contains "CONNECTION"))
+    { code: "EXP-503", msg: "Serviço temporariamente indisponível. Tente novamente dentro de alguns minutos." }
+  else if ((nsErro == "WSC") or (nsErro == "HTTP"))
+    { code: "EXP-502", msg: "Não foi possível processar a operação neste momento." }
+  else if ((nsErro == "APIKIT-SOAP") or (idErro contains "BAD_REQUEST"))
+    { code: "EXP-400", msg: "O pedido não está no formato esperado." }
+  else
+    { code: "EXP-500", msg: "Ocorreu um problema. Tente novamente dentro de alguns minutos." }
+---
+{
+  soap#Fault: {
+    faultcode:   if (e.code == "EXP-400") "soap:Client" else "soap:Server",
+    faultstring: e.msg,
+    detail: {
+      common#ExperienceFault: {
+        common#errorCode:     e.code,
+        common#errorMessage:  e.msg,
+        common#timestamp:     now() as String {format: "yyyy-MM-dd'T'HH:mm:ssXXX"}
+      }
+    }
+  }
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+		</on-error-propagate>
+	</error-handler>
+</mule>
